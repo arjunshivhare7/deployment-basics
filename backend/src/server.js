@@ -32,7 +32,7 @@ const startServer = async () => {
 
     // Connect to databases
     await connectMongoDB();
-    connectElasticsearch();
+    await connectElasticsearch();
 
     // Start listening
     const PORT = config.getPort();

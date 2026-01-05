@@ -17,25 +17,46 @@ export const connectMongoDB = async () => {
   }
 };
 
-export const connectElasticsearch = () => {
+export const connectElasticsearch = async () => {
   try {
     const esConfig = config.getElasticsearchConfig();
+    console.log(`🔗 Connecting to Elasticsearch at: ${esConfig.node}`);
+    
     esClient = new Client({
       node: esConfig.node,
       maxRetries: esConfig.maxRetries,
       requestTimeout: esConfig.requestTimeout,
     });
-    console.log('✅ Elasticsearch client initialized');
+    
+    // Test the connection
+    try {
+      const pingResult = await esClient.ping();
+      console.log('✅ Elasticsearch client initialized and connected');
+      console.log(`   Ping result: ${pingResult}`);
+    } catch (pingError) {
+      console.error('❌ Elasticsearch ping failed:', pingError.message);
+      throw pingError;
+    }
+    
     return esClient;
   } catch (error) {
     console.error('❌ Elasticsearch connection error:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack,
+      meta: error.meta,
+    });
     throw error;
   }
 };
 
 export const getElasticsearchClient = () => {
   if (!esClient) {
-    return connectElasticsearch();
+    const esConfig = config.getElasticsearchConfig();
+    console.error('❌ Elasticsearch client not initialized!');
+    console.error(`   Expected to connect to: ${esConfig.node}`);
+    console.error('   Make sure connectElasticsearch() is called during server startup');
+    throw new Error('Elasticsearch client is not initialized. Call connectElasticsearch() first.');
   }
   return esClient;
 };
