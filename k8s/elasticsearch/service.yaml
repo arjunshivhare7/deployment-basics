@@ -6,7 +6,7 @@ metadata:
   labels:
     app: elasticsearch
 spec:
-  clusterIP: None
+  type: LoadBalancer
   ports:
     - port: 9200
       targetPort: 9200
