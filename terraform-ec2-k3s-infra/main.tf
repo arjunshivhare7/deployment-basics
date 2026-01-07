@@ -111,13 +111,20 @@ set -e
 # Update system
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl
+apt-get install -y curl ca-certificates
 
-# Copy local bootstrap script onto the instance (no GitHub download required)
+# Download bootstrap script directly from GitHub (raw) and run it
 BOOTSTRAP_SCRIPT="/tmp/bootstrap-k3s-ec2.sh"
-cat > "$BOOTSTRAP_SCRIPT" <<'__BOOTSTRAP_EOF__'
-${file("${path.module}/bootstrap-k3s-ec2.sh")}
-__BOOTSTRAP_EOF__
+
+# Convert repo URL into "owner/repo" for raw.githubusercontent.com
+REPO_PATH="${var.github_repo_url}"
+REPO_PATH="${REPO_PATH#https://github.com/}"
+REPO_PATH="${REPO_PATH#http://github.com/}"
+REPO_PATH="${REPO_PATH#git@github.com:}"
+REPO_PATH="${REPO_PATH%.git}"
+
+RAW_BOOTSTRAP_URL="https://raw.githubusercontent.com/${REPO_PATH}/${var.github_repo_branch}/terraform-ec2-k3s-infra/bootstrap-k3s-ec2.sh"
+curl -fsSL -o "$BOOTSTRAP_SCRIPT" "$RAW_BOOTSTRAP_URL"
 chmod +x "$BOOTSTRAP_SCRIPT"
 
 # Run the bootstrap script
