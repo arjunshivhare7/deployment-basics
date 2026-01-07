@@ -164,6 +164,61 @@ configure_kubeconfig() {
     log_info "kubeconfig written to ${target_home}/.kube/config (use: kubectl get pods)"
 }
 
+# Step 3c: Persist KUBECONFIG environment variable for the user
+persist_kubeconfig_env() {
+    local target_user="${SUDO_USER:-ubuntu}"
+
+    if ! id "$target_user" &>/dev/null; then
+        log_warn "User '${target_user}' does not exist; skipping KUBECONFIG persistence"
+        return
+    fi
+
+    local target_home
+    target_home="$(eval echo "~${target_user}")"
+    if [[ -z "$target_home" || ! -d "$target_home" ]]; then
+        log_warn "Cannot determine home for user '${target_user}'; skipping KUBECONFIG persistence"
+        return
+    fi
+
+    local kubeconfig_path="${target_home}/.kube/config"
+    if [[ ! -f "$kubeconfig_path" ]]; then
+        log_warn "kubeconfig not found at ${kubeconfig_path}; skipping KUBECONFIG persistence"
+        return
+    fi
+
+    log_info "Persisting KUBECONFIG for user '${target_user}'..."
+
+    # Determine which profile file to use (prefer .bashrc, fallback to .profile)
+    local profile_file
+    if [[ -f "${target_home}/.bashrc" ]]; then
+        profile_file="${target_home}/.bashrc"
+    elif [[ -f "${target_home}/.profile" ]]; then
+        profile_file="${target_home}/.profile"
+    else
+        # Create .bashrc if neither exists
+        profile_file="${target_home}/.bashrc"
+        touch "$profile_file"
+        chown "${target_user}:${target_user}" "$profile_file"
+    fi
+
+    # Check if KUBECONFIG export already exists (idempotent)
+    local marker="# KUBECONFIG for k3s (added by bootstrap-k3s-ec2.sh)"
+    if grep -q "$marker" "$profile_file" 2>/dev/null; then
+        log_info "KUBECONFIG export already exists in ${profile_file}, skipping"
+        return
+    fi
+
+    # Append the KUBECONFIG export with a marker
+    {
+        echo ""
+        echo "$marker"
+        echo "export KUBECONFIG=\"${kubeconfig_path}\""
+    } >> "$profile_file"
+
+    chown "${target_user}:${target_user}" "$profile_file"
+    log_info "KUBECONFIG export added to ${profile_file}"
+}
+
 # Step 4: Clone repository
 clone_repo() {
     log_info "Cloning repository: $REPO_URL (branch: $REPO_BRANCH)"
@@ -194,8 +249,16 @@ apply_manifests() {
     
     cd "$REPO_DIR"
     
-    # Export k3s kubectl for convenience
-    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    # Use the user kubeconfig (same logic as configure_kubeconfig)
+    local target_user="${SUDO_USER:-ubuntu}"
+    local target_home
+    target_home="$(eval echo "~${target_user}")"
+    if [[ -n "$target_home" && -f "${target_home}/.kube/config" ]]; then
+        export KUBECONFIG="${target_home}/.kube/config"
+    else
+        # Fallback to root kubeconfig if user config doesn't exist
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    fi
     
     # Apply in dependency order
     log_info "Applying ConfigMap..."
@@ -232,7 +295,16 @@ apply_manifests() {
 wait_for_pods() {
     log_info "Waiting for all pods to be ready (this may take several minutes)..."
     
-    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    # Use the user kubeconfig (same logic as configure_kubeconfig)
+    local target_user="${SUDO_USER:-ubuntu}"
+    local target_home
+    target_home="$(eval echo "~${target_user}")"
+    if [[ -n "$target_home" && -f "${target_home}/.kube/config" ]]; then
+        export KUBECONFIG="${target_home}/.kube/config"
+    else
+        # Fallback to root kubeconfig if user config doesn't exist
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    fi
     
     # Wait for each component
     log_info "Waiting for MongoDB..."
@@ -255,7 +327,16 @@ wait_for_pods() {
 
 # Step 7: Print status and access instructions
 print_status() {
-    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    # Use the user kubeconfig (same logic as configure_kubeconfig)
+    local target_user="${SUDO_USER:-ubuntu}"
+    local target_home
+    target_home="$(eval echo "~${target_user}")"
+    if [[ -n "$target_home" && -f "${target_home}/.kube/config" ]]; then
+        export KUBECONFIG="${target_home}/.kube/config"
+    else
+        # Fallback to root kubeconfig if user config doesn't exist
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    fi
     
     echo ""
     echo "================================================================================"
@@ -312,6 +393,7 @@ main() {
     set_es_kernel_param
     install_k3s
     configure_kubeconfig
+    persist_kubeconfig_env
     clone_repo
     apply_manifests
     wait_for_pods
