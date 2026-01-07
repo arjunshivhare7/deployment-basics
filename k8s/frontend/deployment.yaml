@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: todo-frontend:latest
+        image: sumrenders/todo-frontend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
