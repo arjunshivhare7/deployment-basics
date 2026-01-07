@@ -25,9 +25,6 @@ spec:
         - containerPort: 443
           name: https
           protocol: TCP
-        - containerPort: 2019
-          name: admin
-          protocol: TCP
         volumeMounts:
         - name: caddy-config
           mountPath: /etc/caddy/Caddyfile
@@ -41,14 +38,14 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /config/
-            port: 2019
+            path: /
+            port: 80
           initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /config/
-            port: 2019
+            path: /
+            port: 80
           initialDelaySeconds: 5
           periodSeconds: 10
       volumes:
