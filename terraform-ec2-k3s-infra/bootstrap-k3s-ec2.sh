@@ -38,7 +38,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration (can be overridden via environment variables)
-REPO_URL="${REPO_URL:-https://github.com/sumrender/deployment-basics.git}"
+REPO_URL="${REPO_URL:-https://github.com/arjunshivhare7/deployment-basics.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 REPO_DIR="${REPO_DIR:-/tmp/deployment-basics}"
 K3S_INSTALL_SCRIPT="${K3S_INSTALL_SCRIPT:-https://get.k3s.io}"
