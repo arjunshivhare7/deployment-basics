@@ -7,13 +7,13 @@ variable "aws_region" {
 variable "aws_profile" {
   description = "AWS CLI profile name to use for credentials (optional). If null, the AWS provider will use the default credential chain (env vars, shared config/credentials files, etc)."
   type        = string
-  default     = "sumrender-paid"
+  default     = null
 }
 
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t3.large"
+  default     = "c7i-flex.large"
 }
 
 variable "allowed_ssh_cidr" {
