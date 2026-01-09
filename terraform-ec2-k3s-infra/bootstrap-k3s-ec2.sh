@@ -133,6 +133,26 @@ install_k3s() {
     log_info "k3s ServiceLB (LoadBalancer) is enabled by default"
 }
 
+install_ebs_csi_driver() {
+    log_info "Installing AWS EBS CSI Driver..."
+
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+    if k3s kubectl get csidriver ebs.csi.aws.com >/dev/null 2>&1; then
+        log_info "AWS EBS CSI Driver already installed, skipping"
+        return
+    fi
+
+    k3s kubectl apply -k \
+    https://github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable
+
+    log_info "Waiting for EBS CSI controller to be ready..."
+    k3s kubectl rollout status deploy/ebs-csi-controller -n kube-system --timeout=120s
+
+    log_info "AWS EBS CSI Driver installed successfully"
+}
+
+
 # Step 3b: Configure kubeconfig for a non-root user (so `kubectl` works without sudo)
 configure_kubeconfig() {
     local kubeconfig_src="/etc/rancher/k3s/k3s.yaml"
@@ -395,6 +415,7 @@ main() {
     install_prerequisites
     set_es_kernel_param
     install_k3s
+    install_ebs_csi_driver
     configure_kubeconfig
     persist_kubeconfig_env
     clone_repo
