@@ -261,6 +261,9 @@ apply_manifests() {
     fi
     
     # Apply in dependency order
+    log_info "Applying EBS StorageClass..."
+    k3s kubectl apply -f k8s/storage/ebs-sc.yaml
+
     log_info "Applying ConfigMap..."
     k3s kubectl apply -f k8s/configmap.yaml
     
@@ -287,7 +290,7 @@ apply_manifests() {
     
     log_info "Applying Caddy Ingress..."
     k3s kubectl apply -f k8s/ingress/
-    
+
     log_info "All manifests applied"
 }
 
