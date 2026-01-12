@@ -43,7 +43,7 @@ export const ESList = forwardRef<ESListRef>((props, ref) => {
   return (
     <div className="es-list">
       <div className="header">
-        <h2>Elasticsearch Todos</h2>
+        <h2>Elasticsearch Todos CHANGED</h2>
         <button onClick={() => fetchTodos()} disabled={loading} className="refresh-btn">
           {loading ? 'Loading...' : 'Refresh All'}
         </button>
