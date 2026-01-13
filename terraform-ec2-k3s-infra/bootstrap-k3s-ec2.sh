@@ -261,6 +261,9 @@ apply_manifests() {
     fi
     
     # Apply in dependency order
+    log_info "Applying EBS StorageClass..."
+    k3s kubectl apply -f k8s/storage/ebs-sc.yaml
+
     log_info "Applying ConfigMap..."
     k3s kubectl apply -f k8s/configmap.yaml
     
