@@ -136,32 +136,48 @@ EOF
     log_info "k3s installed and ready"
 }
 
-wait_for_k8s_api() {
-    log_info "Waiting for Kubernetes API server to be ready..."
+wait_for_k8s_api_stable() {
+    log_info "Waiting for Kubernetes API server to stabilize..."
 
-    timeout=120
-    elapsed=0
+    stable_count=0
+    required_stable=5
 
-    while ! k3s kubectl version --request-timeout=5s &>/dev/null; do
-        if [[ $elapsed -ge $timeout ]]; then
-            log_error "Kubernetes API server not ready after ${timeout}s"
-            exit 1
+    while true; do
+        if k3s kubectl get --raw='/healthz' &>/dev/null; then
+            stable_count=$((stable_count + 1))
+            if [[ $stable_count -ge $required_stable ]]; then
+                break
+            fi
+        else
+            stable_count=0
         fi
         sleep 3
-        elapsed=$((elapsed + 3))
     done
 
-    log_info "Kubernetes API server is ready"
+    log_info "Kubernetes API server is stable"
 }
 
 
 install_ebs_csi() {
     log_info "Installing AWS EBS CSI Driver..."
 
-    wait_for_k8s_api
+    wait_for_k8s_api_stable
 
-    k3s kubectl apply --validate=false -k \
+    attempts=0
+    max_attempts=5
+
+    until k3s kubectl apply --validate=false -k \
       "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.29"
+    do
+        attempts=$((attempts + 1))
+        if [[ $attempts -ge $max_attempts ]]; then
+            log_error "EBS CSI install failed after ${max_attempts} attempts"
+            exit 1
+        fi
+        log_warn "EBS CSI install failed (API restarting). Retrying in 10s..."
+        sleep 10
+        wait_for_k8s_api_stable
+    done
 
     log_info "Waiting for EBS CSI pods..."
     sleep 60
@@ -171,7 +187,7 @@ install_ebs_csi() {
         exit 1
     }
 
-    log_info "EBS CSI Driver installed"
+    log_info "AWS EBS CSI Driver installed successfully"
 }
 
 
