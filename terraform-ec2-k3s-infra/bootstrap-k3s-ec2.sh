@@ -136,11 +136,31 @@ EOF
     log_info "k3s installed and ready"
 }
 
+wait_for_k8s_api() {
+    log_info "Waiting for Kubernetes API server to be ready..."
+
+    timeout=120
+    elapsed=0
+
+    while ! k3s kubectl version --request-timeout=5s &>/dev/null; do
+        if [[ $elapsed -ge $timeout ]]; then
+            log_error "Kubernetes API server not ready after ${timeout}s"
+            exit 1
+        fi
+        sleep 3
+        elapsed=$((elapsed + 3))
+    done
+
+    log_info "Kubernetes API server is ready"
+}
+
 
 install_ebs_csi() {
     log_info "Installing AWS EBS CSI Driver..."
 
-    k3s kubectl apply -k \
+    wait_for_k8s_api
+
+    k3s kubectl apply --validate=false -k \
       "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.29"
 
     log_info "Waiting for EBS CSI pods..."
