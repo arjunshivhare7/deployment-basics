@@ -18,7 +18,7 @@ spec:
         fsGroup: 1000
 
       initContainers:
-        # 🔐 FIX: Ensure EBS volume ownership for Elasticsearch
+        # Ensure Elasticsearch can write to the EBS-backed data volume (fixes non-root permission issues)
         - name: fix-permissions
           image: busybox:1.35
           command:
