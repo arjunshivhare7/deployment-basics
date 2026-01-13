@@ -107,18 +107,24 @@ set_es_kernel_param() {
 install_k3s() {
     if command -v k3s &> /dev/null; then
         log_warn "k3s appears to be already installed. Skipping installation."
-        log_info "To reinstall, uninstall k3s first: /usr/local/bin/k3s-uninstall.sh"
         return
     fi
-    
+
+    log_info "Configuring k3s for EBS CSI (mount propagation)..."
+    mkdir -p /etc/rancher/k3s
+
+    cat <<EOF >/etc/rancher/k3s/config.yaml
+kubelet-arg:
+  - "feature-gates=MountPropagation=true"
+EOF
+
     log_info "Installing k3s (single-node cluster)..."
     curl -sfL "$K3S_INSTALL_SCRIPT" | sh -
-    
-    # Wait for k3s to be ready
+
     log_info "Waiting for k3s to be ready..."
     timeout=60
     elapsed=0
-    while ! k3s kubectl get nodes &> /dev/null; do
+    while ! k3s kubectl get nodes &>/dev/null; do
         if [[ $elapsed -ge $timeout ]]; then
             log_error "k3s failed to start within ${timeout}s"
             exit 1
@@ -126,11 +132,26 @@ install_k3s() {
         sleep 2
         elapsed=$((elapsed + 2))
     done
-    
+
     log_info "k3s installed and ready"
-    
-    # Verify ServiceLB is enabled (it's enabled by default)
-    log_info "k3s ServiceLB (LoadBalancer) is enabled by default"
+}
+
+
+install_ebs_csi() {
+    log_info "Installing AWS EBS CSI Driver..."
+
+    k3s kubectl apply -k \
+      "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.29"
+
+    log_info "Waiting for EBS CSI pods..."
+    sleep 60
+
+    k3s kubectl get pods -n kube-system | grep ebs || {
+        log_error "EBS CSI pods not running"
+        exit 1
+    }
+
+    log_info "EBS CSI Driver installed"
 }
 
 
@@ -396,6 +417,7 @@ main() {
     install_prerequisites
     set_es_kernel_param
     install_k3s
+    install_ebs_csi
     configure_kubeconfig
     persist_kubeconfig_env
     clone_repo
