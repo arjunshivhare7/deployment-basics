@@ -103,99 +103,35 @@ set_es_kernel_param() {
     fi
 }
 
+# Step 3: Install k3s
 install_k3s() {
-    log_warn "Forcing clean k3s install (required for config changes)..."
-
-    # Completely uninstall if present
-    if [ -x /usr/local/bin/k3s-uninstall.sh ]; then
-        /usr/local/bin/k3s-uninstall.sh
+    if command -v k3s &> /dev/null; then
+        log_warn "k3s appears to be already installed. Skipping installation."
+        log_info "To reinstall, uninstall k3s first: /usr/local/bin/k3s-uninstall.sh"
+        return
     fi
-
-    rm -rf /etc/rancher/k3s
-    rm -rf /var/lib/rancher/k3s
-    rm -rf /var/lib/kubelet
-    rm -rf /etc/cni /opt/cni
-    rm -rf /var/lib/containerd
-    systemctl daemon-reexec
-
-    log_info "Configuring k3s (mount propagation enabled)..."
-    mkdir -p /etc/rancher/k3s
-
-    cat <<EOF >/etc/rancher/k3s/config.yaml
-kubelet-arg:
-  - "feature-gates=MountPropagation=true"
-
-node-ip: 0.0.0.0
-advertise-address: 0.0.0.0
-tls-san:
-  - 127.0.0.1
-EOF
-
-    log_info "Installing k3s server..."
-    curl -sfL https://get.k3s.io | sh -
-
-    log_info "Waiting for API server..."
-    until k3s kubectl get nodes >/dev/null 2>&1; do
-        sleep 2
-    done
-
-    log_info "k3s installed and API server is healthy"
-}
-
-wait_for_k8s_api_stable() {
-    log_info "Waiting for Kubernetes API server to stabilize..."
-
-    stable_count=0
-    required_stable=5
-
-    while true; do
-        if k3s kubectl get --raw='/healthz' &>/dev/null; then
-            stable_count=$((stable_count + 1))
-            if [[ $stable_count -ge $required_stable ]]; then
-                break
-            fi
-        else
-            stable_count=0
-        fi
-        sleep 3
-    done
-
-    log_info "Kubernetes API server is stable"
-}
-
-
-install_ebs_csi() {
-    log_info "Installing AWS EBS CSI Driver..."
-
-    wait_for_k8s_api_stable
-
-    attempts=0
-    max_attempts=5
-
-    until k3s kubectl apply --validate=false -k \
-      "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.29"
-    do
-        attempts=$((attempts + 1))
-        if [[ $attempts -ge $max_attempts ]]; then
-            log_error "EBS CSI install failed after ${max_attempts} attempts"
+    
+    log_info "Installing k3s (single-node cluster)..."
+    curl -sfL "$K3S_INSTALL_SCRIPT" | sh -
+    
+    # Wait for k3s to be ready
+    log_info "Waiting for k3s to be ready..."
+    timeout=60
+    elapsed=0
+    while ! k3s kubectl get nodes &> /dev/null; do
+        if [[ $elapsed -ge $timeout ]]; then
+            log_error "k3s failed to start within ${timeout}s"
             exit 1
         fi
-        log_warn "EBS CSI install failed (API restarting). Retrying in 10s..."
-        sleep 10
-        wait_for_k8s_api_stable
+        sleep 2
+        elapsed=$((elapsed + 2))
     done
-
-    log_info "Waiting for EBS CSI pods..."
-    sleep 60
-
-    k3s kubectl get pods -n kube-system | grep ebs || {
-        log_error "EBS CSI pods not running"
-        exit 1
-    }
-
-    log_info "AWS EBS CSI Driver installed successfully"
+    
+    log_info "k3s installed and ready"
+    
+    # Verify ServiceLB is enabled (it's enabled by default)
+    log_info "k3s ServiceLB (LoadBalancer) is enabled by default"
 }
-
 
 # Step 3b: Configure kubeconfig for a non-root user (so `kubectl` works without sudo)
 configure_kubeconfig() {
@@ -325,9 +261,6 @@ apply_manifests() {
     fi
     
     # Apply in dependency order
-    log_info "Applying EBS StorageClass..."
-    k3s kubectl apply -f k8s/storage/ebs-sc.yaml
-
     log_info "Applying ConfigMap..."
     k3s kubectl apply -f k8s/configmap.yaml
     
@@ -354,7 +287,7 @@ apply_manifests() {
     
     log_info "Applying Caddy Ingress..."
     k3s kubectl apply -f k8s/ingress/
-
+    
     log_info "All manifests applied"
 }
 
@@ -459,7 +392,6 @@ main() {
     install_prerequisites
     set_es_kernel_param
     install_k3s
-    install_ebs_csi
     configure_kubeconfig
     persist_kubeconfig_env
     clone_repo
