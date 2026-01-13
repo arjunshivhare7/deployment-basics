@@ -103,37 +103,43 @@ set_es_kernel_param() {
     fi
 }
 
-# Step 3: Install k3s
 install_k3s() {
-    if command -v k3s &> /dev/null; then
-        log_warn "k3s appears to be already installed. Skipping installation."
-        return
+    log_warn "Forcing clean k3s install (required for config changes)..."
+
+    # Completely uninstall if present
+    if [ -x /usr/local/bin/k3s-uninstall.sh ]; then
+        /usr/local/bin/k3s-uninstall.sh
     fi
 
-    log_info "Configuring k3s for EBS CSI (mount propagation)..."
+    rm -rf /etc/rancher/k3s
+    rm -rf /var/lib/rancher/k3s
+    rm -rf /var/lib/kubelet
+    rm -rf /etc/cni /opt/cni
+    rm -rf /var/lib/containerd
+    systemctl daemon-reexec
+
+    log_info "Configuring k3s (mount propagation enabled)..."
     mkdir -p /etc/rancher/k3s
 
     cat <<EOF >/etc/rancher/k3s/config.yaml
 kubelet-arg:
   - "feature-gates=MountPropagation=true"
+
+node-ip: 0.0.0.0
+advertise-address: 0.0.0.0
+tls-san:
+  - 127.0.0.1
 EOF
 
-    log_info "Installing k3s (single-node cluster)..."
-    curl -sfL "$K3S_INSTALL_SCRIPT" | sh -
+    log_info "Installing k3s server..."
+    curl -sfL https://get.k3s.io | sh -
 
-    log_info "Waiting for k3s to be ready..."
-    timeout=60
-    elapsed=0
-    while ! k3s kubectl get nodes &>/dev/null; do
-        if [[ $elapsed -ge $timeout ]]; then
-            log_error "k3s failed to start within ${timeout}s"
-            exit 1
-        fi
+    log_info "Waiting for API server..."
+    until k3s kubectl get nodes >/dev/null 2>&1; do
         sleep 2
-        elapsed=$((elapsed + 2))
     done
 
-    log_info "k3s installed and ready"
+    log_info "k3s installed and API server is healthy"
 }
 
 wait_for_k8s_api_stable() {
