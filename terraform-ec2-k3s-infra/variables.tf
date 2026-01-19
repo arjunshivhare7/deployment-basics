@@ -4,12 +4,6 @@ variable "aws_region" {
   default     = "ap-south-1"
 }
 
-variable "aws_profile" {
-  description = "AWS CLI profile name to use for credentials (optional). If null, the AWS provider will use the default credential chain (env vars, shared config/credentials files, etc)."
-  type        = string
-  default     = null
-}
-
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
