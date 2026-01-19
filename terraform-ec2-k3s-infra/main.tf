@@ -200,9 +200,3 @@ resource "aws_iam_role_policy" "ebs_csi_extra" {
     ]
   })
 }
-
-resource "null_resource" "cloud_test" {
-  triggers = {
-    timestamp = timestamp()
-  }
-}
