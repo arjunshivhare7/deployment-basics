@@ -18,3 +18,6 @@ output "kubectl_command" {
   value       = "ssh -i ec2-key.pem ubuntu@${aws_instance.k3s_cluster.public_ip} 'sudo k3s kubectl'"
 }
 
+output "state_test" {
+  value = "terraform-cloud-is-working"
+}
