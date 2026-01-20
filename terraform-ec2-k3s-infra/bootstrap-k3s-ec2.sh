@@ -219,6 +219,7 @@ persist_kubeconfig_env() {
     log_info "KUBECONFIG export added to ${profile_file}"
 }
 
+# Step 3d: Install AWS EBS CSI Driver
 install_ebs_csi_driver() {
     log_info "Installing AWS EBS CSI Driver..."
     k3s kubectl apply -k \
